@@ -3,29 +3,48 @@
 //
 #include <iostream>
 #include <fstream>
+#include <set>
+#include <vector>
 
 #ifndef SIAOD_2_FILESBIN_H
 #define SIAOD_2_FILESBIN_H
 
 using namespace std;
-
+struct Schedule {
+    char key[37];
+    char disciplineName[50];
+    char typeOfLesson[50];
+    char numberOfTheAudience[50];
+    short numberOfGroup;
+    short classNumber;
+    short week;
+    short dayOfTheWeek;
+};
 class FilesBin {
-    struct schedule {
-        char key[50];
-        char numberOfGroup[3];
-        char disciplineName[50];
-        char classNumber[1];
-        char week[2];
-        char dayOfTheWeek[1];
-        char typeOfLesson[50];
-        char numberOfTheAudience[5];
-    };
 public:
-    static int createNewFile(string, string);
+    static int createNewFile(string, int=10, string = "second.txt");
+
+    static int saveFromBinToText(string, string);
 
     static int readFile(string);
 
+    static int getScheduleByNumber(int, string,Schedule &);
 
+    static int deleteByKey(string, string);
+
+    static int createFileWithScheduleForGroup(short, string, string="");
+
+    static int updateSchedule(string);
+
+    static void makeNewAudience(char *);
+
+    static void printOneSchedule(Schedule);
+
+    static int deleteByPos(int pos, string nameBin);
+
+    static int createBinFileFromArray(vector<Schedule>,string nameBin);
+
+    static int getSize(string nameBin);
 };
 
 

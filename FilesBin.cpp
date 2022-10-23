@@ -7,136 +7,246 @@
 using namespace std;
 
 
-int FilesBin::createNewFile(string copyFrom, string nameNew) {
-    ifstream textFile(copyFrom);
-    ofstream binFile(nameNew, ios::binary);
-
-    if (!binFile || !textFile) return -1;
-
-    schedule schedule{};
-    while (!textFile.getline(schedule.key,50,'\n')) {
-        textFile.getline(schedule.numberOfGroup,3,'\n');
-        textFile.getline(schedule.disciplineName,50,'\n');
-        textFile.getline(schedule.classNumber,1,'\n');
-        textFile.getline(schedule.week,2,'\n');
-        textFile.getline(schedule.dayOfTheWeek,1,'\n');
-        textFile.getline(schedule.typeOfLesson,50,'\n');
-        textFile.getline(schedule.numberOfTheAudience,5,'\n');
-
-        binFile.write((char *) &schedule, sizeof(schedule));
+int FilesBin::createNewFile(string nameBin, int size, string nameText) {
+    ifstream textFile(nameText);
+    ofstream binFile(nameBin, ios::binary | ios::trunc);
+    if (size > 10) {
+        size = 10;
     }
+    binFile.write(reinterpret_cast<char *>(&size), sizeof(int));
+    if (!binFile.good() || !textFile.good()) return -1;
+    Schedule schedule{};
+    for (int i = 0; i < size; i++) {
+        textFile.get();
+        textFile.getline(schedule.key, sizeof(schedule.key), '\n');
+        textFile.getline(schedule.disciplineName, sizeof(schedule.disciplineName), '\n');
+        textFile.getline(schedule.typeOfLesson, sizeof(schedule.typeOfLesson), '\n');
+        textFile.getline(schedule.numberOfTheAudience, sizeof(schedule.numberOfTheAudience), '\n');
+        textFile >> schedule.numberOfGroup;
+        textFile >> schedule.classNumber;
+        textFile >> schedule.week;
+        textFile >> schedule.dayOfTheWeek;
+        binFile.write(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+    }
+
     textFile.clear();
     binFile.clear();
-    if (!textFile.good() || !binFile.good())return -1;
-
     textFile.close();
     binFile.close();
     return 0;
 }
 
 int FilesBin::readFile(string nameBin) {
-    ifstream binFile(nameBin, ios::binary);
-    if (!binFile)return -1;
-
-    schedule schedule;
-    while (!binFile.eof()) {
-        binFile.read((char *) &schedule, sizeof(schedule));
-        cout << schedule.key
-             << "\nГруппа : " << schedule.numberOfGroup
-             << "\nНаименование дисциплины: " << schedule.disciplineName
-             << "\nНомер класса: " << schedule.classNumber
-             << "\nНеделя месяца: " << schedule.week
-             << "\nДень недели: " << schedule.dayOfTheWeek
-             << "\nВид занятия: " << schedule.typeOfLesson
-             << "\nНомер аудитории: " << schedule.numberOfTheAudience;
-    }
-    binFile.clear();
+    ifstream binFile(nameBin, ios::binary | ios::in);
     if (!binFile.good())return -1;
 
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    Schedule schedule{};
+    for (int i = 0; i < size; i++) {
+        binFile.read(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+        printOneSchedule(schedule);
+    }
+    binFile.clear();
     binFile.close();
     return 0;
 }
 
+int FilesBin::saveFromBinToText(string nameBin, string nameText) {
+    ifstream binFile(nameBin, ios::binary | ios::in);
+    ofstream textFile(nameText);
+    Schedule schedule{};
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    if (!binFile.good() || !textFile.good()) return -1;
+    for (int i = 0; i < size; i++) {
+        binFile.read(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+        textFile << schedule.key << endl << schedule.disciplineName << endl << schedule.typeOfLesson << endl
+                 << schedule.numberOfTheAudience << endl
+                 << schedule.numberOfGroup << endl << schedule.classNumber << endl << schedule.week << endl
+                 << schedule.dayOfTheWeek << endl;
+
+    }
+    textFile.clear();
+    binFile.clear();
+    textFile.close();
+    binFile.close();
+    return 0;
+}
+
+int FilesBin::getScheduleByNumber(int pos, string nameBin, Schedule &schedule) {
+
+    ifstream binFile(nameBin, ios::binary | ios::in);
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    if (!binFile.good() || (pos > size) || (pos < 1))return -1;
+
+    binFile.seekg(sizeof(Schedule) * (pos - 1) + sizeof(int), ios::beg);
+    binFile.read(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+    binFile.clear();
+    binFile.close();
+    return 0;
+}
+
+int FilesBin::deleteByPos(int pos, string nameBin) {
+    fstream binFile(nameBin, ios::binary | ios::out | ios::in);
+    int size;
+    Schedule last;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    if (!binFile.good() || (pos > size))return -1;
+    binFile.seekg(sizeof(Schedule) * (size - 1) + sizeof(int), ios::beg);
+    binFile.read(reinterpret_cast<char *>(&last), sizeof(Schedule));
+
+    binFile.seekg(sizeof(Schedule) * (pos - 1) + sizeof(int), ios::beg);
+    binFile.write(reinterpret_cast<char *>( &last), sizeof(Schedule));
+    binFile.seekg(0, ios::beg);
+    size--;
+    binFile.write(reinterpret_cast<char *>( &size), sizeof(int));
+    return 0;
+}
+
+int FilesBin::deleteByKey(string key, string nameBin) {
+    fstream binFile(nameBin, ios::binary | ios::in | ios::out);
+    if (!binFile.good())return -1;
+    Schedule schedule{};
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    Schedule last{};
+    getScheduleByNumber(size, nameBin, last);
+    for (int i = 0; i < size; i++) {
+        binFile.read(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+        if (schedule.key == key) {
+            binFile.seekg(-sizeof(Schedule), ios::cur);
+            binFile.write(reinterpret_cast<char *>( &last), sizeof(Schedule));
+            binFile.seekg(0, ios::beg);
+            size--;
+            binFile.write(reinterpret_cast<char *>( &size), sizeof(int));
+            return 0;
+        }
+    }
+
+    binFile.clear();
+    binFile.close();
+    return -1;
+}
+
+int FilesBin::createFileWithScheduleForGroup(short group, string nameBin,
+                                             string nameBinSchedule) {
+    nameBinSchedule = nameBin + "ForGroup" + to_string(group);
+    ifstream binFile(nameBin, ios::binary | ios::in);
+    ofstream binGroupFile(nameBinSchedule, ios::binary | ios::out);
+
+    vector<Schedule> arrayForNewFile;
+
+    if (!binFile.good() || !binGroupFile.good())return -1;
+
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    Schedule schedule{};
+    for (int i = 0; i < size; i++) {
+        binFile.read(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+        if (schedule.numberOfGroup == group) {
+            arrayForNewFile.push_back(schedule);
+        }
+    }
+
+    int newSize = arrayForNewFile.size();
+    binGroupFile.write(reinterpret_cast<char *>(&newSize), sizeof(int));
+    for (Schedule scheduleTemp: arrayForNewFile) {
+        binGroupFile.write(reinterpret_cast<char *>( &scheduleTemp), sizeof(Schedule));
+    }
+
+    binFile.clear();
+    binFile.close();
+    binGroupFile.clear();
+    binGroupFile.close();
+    cout << "Создан новый файл с названием: " << nameBinSchedule << endl;
+    readFile(nameBinSchedule);
+    return 0;
+}
+
+int FilesBin::updateSchedule(string nameBin) {
+    fstream binFile(nameBin, ios::binary | ios::in | ios::out);
+    if (!binFile.good())return -1;
+
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    Schedule schedule{};
+    pair<int, string> pairTemp;
+    set<pair<int, string>> setOfPair;
+    int counter = 0;
+
+    for (int i = 0; i < size; i++) {
+        binFile.read(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+        pairTemp.first =
+                schedule.classNumber + schedule.dayOfTheWeek * 100 +
+                schedule.week * 10000;
+        pairTemp.second = schedule.numberOfTheAudience;
+        if (setOfPair.contains(pairTemp)) {
+            while (setOfPair.contains(pairTemp)) {
+                makeNewAudience(schedule.numberOfTheAudience);
+                pairTemp.second = schedule.numberOfTheAudience;
+            }
+            binFile.seekg(-sizeof(Schedule), ios::cur);
+            binFile.write(reinterpret_cast<char *>( &schedule), sizeof(Schedule));
+            counter++;
+        } else {
+            setOfPair.insert(pairTemp);
+        }
+    }
+
+    binFile.clear();
+    binFile.close();
+    cout << "\nОбновленное расписание, замен - " << counter << endl;
+    readFile(nameBin);
+    return 0;
+}
+
+void FilesBin::makeNewAudience(char *oldAudience) {
+    srand(time(NULL));
+    oldAudience[0] = 'A' + rand() % 26;
+    oldAudience[1] = '-';
+    oldAudience[2] = '0' + rand() % 10;
+    oldAudience[3] = '0' + rand() % 10;
+    oldAudience[4] = '0' + rand() % 10;
+}
+
+void FilesBin::printOneSchedule(Schedule schedule) {
+    cout << "\nКлюч : " << schedule.key
+         << "\nГруппа : " << schedule.numberOfGroup
+         << "\nНаименование дисциплины: " << schedule.disciplineName
+         << "\nНомер класса: " << schedule.classNumber
+         << "\nНеделя месяца: " << schedule.week
+         << "\nДень недели: " << schedule.dayOfTheWeek
+         << "\nВид занятия: " << schedule.typeOfLesson
+         << "\nНомер аудитории: " << schedule.numberOfTheAudience << endl;
+}
+
+int FilesBin::createBinFileFromArray(vector<Schedule> schedules, string nameBin) {
+    ofstream binFile(nameBin, ios::binary | ios::trunc);
+    if (!binFile.good())return -1;
+    int size = schedules.size();
+    binFile.write(reinterpret_cast<char *>(&size), sizeof(int));
+    for (int i = 0; i < schedules.size(); i++) {
+        binFile.write(reinterpret_cast<char *>( &schedules[i]), sizeof(Schedule));
+    }
+    binFile.clear();
+    binFile.close();
+    return 0;
+}
+
+int FilesBin::getSize(string nameBin) {
+    ifstream binFile(nameBin, ios::binary | ios::in);
+    if (!binFile.good())return -1;
+    int size;
+    binFile.read(reinterpret_cast<char *>(&size), sizeof(int));
+    binFile.clear();
+    binFile.close();
+    return size;
+}
 
 
-//int writeToTF(string nameBin, string nameTF) {
-//    fstream obf(nameBin, ios::in | ios::binary);
-//    ofstream otf(nameTF, ios::app);
-//    if (obf.is_open()) {
-//        if (otf) {
-//            record r;
-//            obf.read((char *) &r, sizeof(record));
-//            while (!obf.eof()) {
-//                otf << r.key << ' ' << r.data << '\n';
-//                obf.read((char *) &r, sizeof(record));
-//            }
-//            obf.close();
-//            otf.close();
-//            return 0;
-//        } else { return -1; }
-//    }
-//    return -2;
-//}
-//
-//int SearchBin(string nameBin, int FindKey) {
-//    ifstream obf(nameBin, ios::in | ios::binary);
-//    if (!obf) return -1;
-//    record r;
-//    int i;
-//    obf.read((char *) &r, sizeof(record));
-//    while (!obf.eof()) {
-//        if (FindKey == r.key) {
-//            obf.close();
-//            return i;
-//        }
-//        obf.read((char *) &r, sizeof(record));
-//        i++;
-//    }
-//    obf.close();
-//    return -2;
-//}
-//
-//int delByKey(string nameBin, int Key) {
-//    fstream obf(nameBin, ios::binary | ios::in);
-//    string BB = "BB.dat"; // Буферный файл
-//    record RR; // Буферная структура с последней строкой
-//    int keyBuff; //
-//    char dataBuff[50]; // Элементы последней строки
-//
-//    if (obf.is_open()) { // Сохранение последних элементов
-//        ofstream obfBuff(BB, ios::binary | ios::out); // Буферный файл
-//        record r;
-//        obf.read((char *) &r, sizeof(record));
-//        while (!obf.eof()) {
-//            for (int i = 0; i < 50; i++) { RR.data[i] = r.data[i]; } // Запись последней строки
-//            RR.key = r.key; // -||-
-//
-//            obfBuff.write((char *) &r, sizeof(record)); // Записываю всё в буфер
-//            obf.read((char *) &r, sizeof(record));
-//        }
-//        obfBuff.close();
-//        obf.close();
-//        //remove(BB.c_str());
-//    } else { return -1; }
-//
-//    remove(nameBin.c_str()); // Удаляю файл
-//    //cout<<"\n"<<RR.key<<endl;
-//
-//    ofstream obf2(nameBin, ios::out | ios::binary); // Создаю заново
-//    fstream obfBuff2(BB, ios::in | ios::binary); // Читаю буферный файл
-//    if (obfBuff2.is_open()) {
-//        record r2;
-//
-//        obfBuff2.read((char *) &r2, sizeof(record)); // Читаю буфер
-//        while (!obfBuff2.eof()) {
-//            if (r2.key != Key) { obf2.write((char *) &r2, sizeof(record)); } // Key - это то что мне не надо записывать
-//                // соответственно у чего остальные ключи, записываются
-//            else { obf2.write((char *) &RR, sizeof(record)); } // на место удалённого ключа ставлю последнюю строку
-//            obfBuff2.read((char *) &r2, sizeof(record)); //читаю дальше
-//        }
-//        obfBuff2.close();
-//        obf2.close();
-//        remove(BB.c_str()); // удаляю буфер
-//    }
-//    return 0;
-//}
+
+
+
+
