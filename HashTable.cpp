@@ -30,8 +30,8 @@ bool HashTable::put(Key key, int val) {
 
     while (fast != nullptr) {
         if (fast->isDeleted) {
-            fast = new Node(val, key, fast->next);
-            slow->next = fast;
+            fast->val = val;
+            fast->key = key;
             size++;
             return true;
         } else if (fast->val == val) {
@@ -136,5 +136,5 @@ HashTable::HashTable() {
     size = 0;
     sizeWithDeleted = 0;
     arr = new Node *[bufferSize];
-    fillWithNullptr(arr,bufferSize);
+    fillWithNullptr(arr, bufferSize);
 }
