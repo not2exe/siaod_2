@@ -203,7 +203,6 @@ int FilesBin::updateSchedule(string nameBin) {
 }
 
 void FilesBin::makeNewAudience(char *oldAudience) {
-    srand(time(NULL));
     oldAudience[0] = 'A' + rand() % 26;
     oldAudience[1] = '-';
     oldAudience[2] = '0' + rand() % 10;
